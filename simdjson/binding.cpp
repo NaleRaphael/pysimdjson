@@ -5,6 +5,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <pybind11/pybind11.h>
 #include <Python.h>
+#include <vector>
 #include "simdjson.h"
 
 namespace py = pybind11;
@@ -85,6 +86,34 @@ inline py::object element_to_primitive(dom::element e, bool recursive = false) {
         );
     }
 }
+
+
+inline py::object stream_to_elements(dom::document_stream stream, bool recursive = false) {
+    // XXX: We have to read to end first since we don't known the actual
+    //      length of `document_stream` until the stream ends. However,
+    //      the good part of this approach is that we just need to convert
+    //      these loaded values to a Python `List` object.
+    std::vector<dom::element> docs;
+    for (dom::element doc : stream) {
+        docs.push_back(doc);
+    }
+
+    py::list result(docs.size());
+    size_t i = 0;
+    for (dom::element doc : docs) {
+        PyList_SET_ITEM(
+            result.ptr(),
+            i,
+            element_to_primitive(doc, recursive).release().ptr()
+        );
+        i++;
+    }
+
+    // Release vector memory
+    docs.clear();
+    return result;
+}
+
 
 namespace pybind11 { namespace detail {
     // Caster for the elements in Array.
@@ -280,6 +309,17 @@ PYBIND11_MODULE(csimdjson, m) {
             ":param recursive: Recursively turn the document into real\n"
             "                  python objects instead of pysimdjson proxies."
         )
+        .def("load_lines",
+            [](dom::parser &self, std::string &path, bool recursive = false) {
+                return stream_to_elements(self.load_many(path), recursive);
+            },
+            py::arg("path"),
+            py::arg("recursive") = false,
+            "Load a JSON lines document (.jsonl) from the file system path `path`.\n\n"
+            ":param path: A filesystem path.\n"
+            ":param recursive: Recursively turn the document into real\n"
+            "                  python objects instead of pysimdjson proxies."
+        )
         .def("parse",
             [](dom::parser &self, const std::string &s, bool recursive = false) {
                 return element_to_primitive(
@@ -290,6 +330,17 @@ PYBIND11_MODULE(csimdjson, m) {
             py::arg("s"),
             py::arg("recursive") = false,
             "Parse a JSON document from the byte string `s`.\n\n"
+            ":param s: The document to parse.\n"
+            ":param recursive: Recursively turn the document into real\n"
+            "                  python objects instead of pysimdjson proxies."
+        )
+        .def("parse_lines",
+            [](dom::parser &self, const std::string &s, bool recursive = false) {
+                return stream_to_elements(self.parse_many(s), recursive);
+            },
+            py::arg("s"),
+            py::arg("recursive") = false,
+            "Parse a JSON lines document (.jsonl) from the byte string `s`.\n\n"
             ":param s: The document to parse.\n"
             ":param recursive: Recursively turn the document into real\n"
             "                  python objects instead of pysimdjson proxies."
