@@ -92,25 +92,21 @@ inline py::object stream_to_elements(dom::document_stream stream, bool recursive
     // XXX: We have to read to end first since we don't known the actual
     //      length of `document_stream` until the stream ends. However,
     //      the good part of this approach is that we just need to convert
-    //      these loaded values to a Python `List` object.
-    std::vector<dom::element> docs;
+    //      these loaded values to a Python objects then assign them into
+    //      a Python `List` object.
+    std::vector<py::object> docs;
     for (dom::element doc : stream) {
-        docs.push_back(doc);
+        docs.push_back(element_to_primitive(doc, recursive));
     }
 
     py::list result(docs.size());
-    size_t i = 0;
-    for (dom::element doc : docs) {
-        PyList_SET_ITEM(
-            result.ptr(),
-            i,
-            element_to_primitive(doc, recursive).release().ptr()
-        );
-        i++;
+    for (size_t i = 0; i < docs.size(); i++) {
+        PyList_SET_ITEM(result.ptr(), i, docs[i].release().ptr());
     }
 
     // Release vector memory
     docs.clear();
+    docs.shrink_to_fit();
     return result;
 }
 
