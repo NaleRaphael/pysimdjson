@@ -3,6 +3,26 @@
 
 # pysimdjson
 
+**Disclaimer**
+Currently, the implementations of `load_lines()` and `loads_lines()` (utilizing
+`csimdjson.load_many()` and `csimdjson.parse_many()` respectively) in this
+forked repository are not optimized. It's still recommended to load ".jsonl"
+files by reading lines from a file object then parse them line by line. e.g.
+
+```python
+# reuse parse to reduce overhead
+parser = simdjson.Parser()
+# parse line by line
+data = [parser.parse(l) for l in open('data.jsonl', 'r', encoding="utf-8")]
+```
+
+There is a bottleneck on creating Python objects from `dom::document_stream`,
+and it seems like an issue relates to GIL since the lock will be acquired by
+the interpreter thread when we are going to create a Python object through
+C-API. If you are also interested in this issue, feel free to contact me.
+
+---
+
 Python bindings for the [simdjson][] project, a SIMD-accelerated JSON parser.
 If SIMD instructions are unavailable a fallback parser is used, making
 pysimdjson safe to use anywhere.
